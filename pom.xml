@@ -6,7 +6,7 @@
 	<groupId>com.metabit.custom.safe</groupId>
 	<artifactId>safesealing</artifactId>
 	<packaging>jar</packaging>
-	<version>0.7.1-SNAPSHOT</version>
+	<version>0.7.2-SNAPSHOT</version>
 	<name>SAFEevSealing</name>
 
 	<licenses>
