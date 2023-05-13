@@ -56,6 +56,7 @@ public class AlgorithmSpecCollection
     public static final AlgorithmSpec AES256CBC = new AlgorithmSpec(SharedConstants.OID_AES_256_CBC, "AES/CBC", AlgorithmSpec.Type.CIPHER, false, 256, 16, 16);
     /** Constant <code>IIP</code> */
     public static final AlgorithmSpec IIP = new AlgorithmSpec(SharedConstants.OID_IIP_ALGORITHM, "IIP", AlgorithmSpec.Type.PADDING);
+    public static final AlgorithmSpec RSA1024 = new AlgorithmSpec(SharedConstants.OID_RSA_ECB, "RSA/ECB/NoPadding", AlgorithmSpec.Type.CIPHER, true, 1024, 128, 1);
     /** Constant <code>RSA2048</code> */
     public static final AlgorithmSpec RSA2048 = new AlgorithmSpec(SharedConstants.OID_RSA_ECB, "RSA/ECB/NoPadding", AlgorithmSpec.Type.CIPHER, true, 2048, 256, 1);
     /** Constant <code>RSA4096</code> */
@@ -74,7 +75,7 @@ public class AlgorithmSpecCollection
         algorithms.put(SharedConstants.OID_AES_256_ECB, AES256ECB);
         algorithms.put(SharedConstants.OID_AES_256_CBC, AES256CBC);
         algorithms.put(SharedConstants.OID_IIP_ALGORITHM, IIP);
-        algorithms.put(SharedConstants.OID_RSA_ECB, RSA2048);
+        algorithms.put(SharedConstants.OID_RSA_ECB, RSA2048); // RSA algorithm in general uses this OID; default keysize is 2048.
         algorithms.put(SharedConstants.OID_COMPRESSION_NONE, COMPRESSION_NONE);
         algorithms.put(SharedConstants.OID_COMPRESSION_GZIP, COMPRESSION_GZIP);
         algorithms.put(SharedConstants.OID_ECDH_ALGORITHM, ECDH);

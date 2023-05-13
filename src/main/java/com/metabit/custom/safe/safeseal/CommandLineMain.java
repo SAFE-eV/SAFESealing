@@ -5,12 +5,10 @@
  */
 package com.metabit.custom.safe.safeseal;
 
-import lombok.SneakyThrows;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.bouncycastle.util.io.pem.PemObject;
 import org.bouncycastle.util.io.pem.PemReader;
 import picocli.CommandLine;
-
 import java.io.FileReader;
 import java.io.IOException;
 import java.nio.file.Path;
@@ -20,6 +18,7 @@ import java.security.interfaces.RSAPublicKey;
 import java.security.spec.InvalidKeySpecException;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.X509EncodedKeySpec;
+import java.util.Base64;
 
 /**
  * command-line interface for testing purposes.
@@ -31,10 +30,8 @@ import java.security.spec.X509EncodedKeySpec;
  * @version $Id: $Id
  *
  *      WORK IN PROGRESS!
- *
  */
-public class CommandLineMain implements Runnable
-{
+public class CommandLineMain implements Runnable {
     private Provider securityProvider;
     private final KeyFactory keyFactory;
 
@@ -45,85 +42,87 @@ public class CommandLineMain implements Runnable
      * @param args an array of {@link java.lang.String} objects
      * @throws NoSuchAlgorithmException if RSA is not available
      */
-    public static void main(String[] args) throws NoSuchAlgorithmException
-        {
+    public static void main(String[] args) throws NoSuchAlgorithmException {
         final CommandLineMain instance = new CommandLineMain();
         CommandLine.run(instance, args);
-        }
-
+    }
 
     @CommandLine.Option(names = {"-P", "--privateKey"})
     private Path privateKeyInfo;
-
     @CommandLine.Option(names = {"-p", "--publicKey"})
     private Path publicKeyInfo;
-
     @CommandLine.Option(names = {"-i", "--uniqueID"})
     private Long uniqueIDValue;
 
-    CommandLineMain() throws NoSuchAlgorithmException
-        {
+    CommandLineMain() throws NoSuchAlgorithmException {
         securityProvider = Security.getProvider("BC");
-        if (securityProvider == null)
-            {
+        if (securityProvider == null) {
             securityProvider = new BouncyCastleProvider();
             Security.addProvider(securityProvider);
-            }
-        keyFactory = KeyFactory.getInstance("RSA");
         }
+        //<editor-fold defaultstate="collapsed" desc="delombok">
+        keyFactory = KeyFactory.getInstance("RSA");
+    }
+        //</editor-fold>
 
     /**
      * {@inheritDoc} -- when called without arguments, print usage to stdout.
      */
-    @SneakyThrows @Override
-    public void run()
-        {
-        CommandLine.usage(new CommandLineMain(), System.out);
+    @Override
+    public void run() {
+        try {
+            CommandLine.usage(new CommandLineMain(), System.out);
+        } catch (final java.lang.Throwable $ex) {
+            throw lombok.Lombok.sneakyThrow($ex);
         }
+    //<editor-fold defaultstate="collapsed" desc="delombok">
+    }
+    //</editor-fold>
 
     @CommandLine.Command(name = "seal")
-    void seal()
-        {
+    void seal() {
         // prepare keys: private key of sealer is required.
-
         // read stdin
         // write stdout
         // error to stderr
-
-
-        }
+    //<editor-fold defaultstate="collapsed" desc="delombok">
+    }
+    //</editor-fold>
 
     @CommandLine.Command(name = "unseal")
-    void unseal()
-        {
+    void unseal() {
+    }
 
-        }
+    /**
+     * read a RSA public key from an PEM file (see RFC5280, SubjectPublicKeyInfo).
+     * @param pemEncodedRSAPublicKey the PEM encoded public key
+     * @return RSA public key object
+     * @throws NoSuchAlgorithmException if the algorithm doesn't match expectations
+     * @throws InvalidKeySpecException if the key has some other issue
+     * @see {RFC5208}
+     */
+    RSAPublicKey readRSAPublicKeyFromPEMFile(final String pemEncodedRSAPublicKey) throws NoSuchAlgorithmException, InvalidKeySpecException {
+        String publicKeyPEM = pemEncodedRSAPublicKey.replace("-----BEGIN PUBLIC KEY-----", "").replaceAll(System.lineSeparator(), "").replace("-----END PUBLIC KEY-----", "");
+        byte[] encoded = Base64.getDecoder().decode(publicKeyPEM);
+        KeyFactory keyFactory = KeyFactory.getInstance("RSA");
+        X509EncodedKeySpec keySpec = new X509EncodedKeySpec(encoded);
+        return (RSAPublicKey) keyFactory.generatePublic(keySpec);
+    }
 
-
-    // intentionally allowing standard exceptions to happen without explicit checks, for shorter code.
-    PublicKey readRSAPublicKeyFromPEMFile(final Path inputFile) throws IOException, InvalidKeySpecException
-        {
-        FileReader keyReader = new FileReader(inputFile.toFile());
-        PemReader pemReader = new PemReader(keyReader);
-        PemObject pemObject = pemReader.readPemObject();
-
-        X509EncodedKeySpec pubKeySpec = new X509EncodedKeySpec(pemObject.getContent());
-        return (RSAPublicKey) keyFactory.generatePublic(pubKeySpec);
-        }
-
-
-    PrivateKey readRSAPrivateKeyFromPKCS8PEMFile(final Path inputFile) throws IOException, InvalidKeySpecException
-        {
-
-        FileReader keyReader = new FileReader(inputFile.toFile());
-        PemReader pemReader = new PemReader(keyReader);
-        PemObject pemObject = pemReader.readPemObject();
-        // or use PEMParser, JcaPEMKeyConverter, and then go
-        // (RSAPrivateKey) converter.getPrivateKey(PrivateKeyInfo.getInstance(pemParser.readObject()));
-
-        PKCS8EncodedKeySpec privKeySpec = new PKCS8EncodedKeySpec(pemObject.getContent());
-        return (RSAPrivateKey) keyFactory.generatePrivate(privKeySpec);
-        }
-
+    /**
+     * read an RSA private key from an PKCS8 PEM file.
+     * @param pkcs8encodedRSAPrivateKey
+     * @return RSA private key object
+     * @throws NoSuchAlgorithmException if the algorithm doesn't match expectations
+     * @throws InvalidKeySpecException if the key has some other issue
+     * @see {RFC5208}
+     */
+    RSAPrivateKey readRSAPrivateKeyFromPKCS8PEMFile(final String pkcs8encodedRSAPrivateKey) throws NoSuchAlgorithmException, InvalidKeySpecException {
+        String privateKeyPEM = pkcs8encodedRSAPrivateKey.replace("-----BEGIN PRIVATE KEY-----", "").replaceAll(System.lineSeparator(), "").replace("-----END PRIVATE KEY-----", "");
+        byte[] encoded = Base64.getDecoder().decode(privateKeyPEM);
+        KeyFactory keyFactory = KeyFactory.getInstance("RSA");
+        PKCS8EncodedKeySpec keySpec = new PKCS8EncodedKeySpec(encoded);
+        return (RSAPrivateKey) keyFactory.generatePrivate(keySpec);
+    }
 }
 //___EOF___
