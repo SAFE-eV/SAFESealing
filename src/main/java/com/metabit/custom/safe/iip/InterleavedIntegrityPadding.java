@@ -153,7 +153,6 @@ public final class InterleavedIntegrityPadding
         // preparition of local variables
         byte[] id = new byte[MAGIC_ID_LENGTH];
         byte[] nonce = new byte[NONCE_SIZE];
-        byte[] nonce2 = new byte[NONCE_SIZE];
         byte[] lengthBuffer = new byte[PAYLOAD_LENGTH_SIZE];
         byte[] payloadBuffer = null;
         int idLengthExpected = calculateIDsizeUsed();
@@ -312,19 +311,19 @@ public final class InterleavedIntegrityPadding
     /* this implementation prefers legibility to efficiency. compilers will be able to optimise this nicely */
     private static int calculateNumberOfBlocksOverall(final int payloadLengthInBytes, final int payloadBytesPerBlock)
         {
-        int numberOfDataBlocks=calculateNumberOfPayloadBlocks(payloadLengthInBytes+NONCE_SIZE, payloadBytesPerBlock);
-        int numberOfBlocks=1+numberOfDataBlocks; // header block + data blocks
+        int numberOfDataBlocks = calculateNumberOfPayloadBlocks(payloadLengthInBytes + NONCE_SIZE, payloadBytesPerBlock);
+        int numberOfBlocks = 1 + numberOfDataBlocks; // header block + data blocks
         return numberOfBlocks;
         }
 
     // --- class constants ---
-    final static         byte[]       MAGIC_ID_VERSION_1_0={0x3e, 0x7a, (byte) 0xb1, 0x7C, 0x5A, (byte) 0xFE, (byte) 0xE4, 0x10}; // 0x3e7ab1705AFEE410L;
-    private static final int          MAGIC_ID_LENGTH     =8;
-    public final static  int          NONCE_SIZE          =4; // 4 byte.
-    final static         int          PAYLOAD_LENGTH_SIZE =4; // 4 byte.
+    final static byte[] MAGIC_ID_VERSION_1_0 = {0x3E, 0x7A, (byte) 0xB1, 0x7C, 0x5A, (byte) 0xFE, (byte) 0xE4, 0x10}; // 0x3E7AB17C5AFEE410L
+    private static final int MAGIC_ID_LENGTH = 8;
+    public final static int NONCE_SIZE = 4; // 4 byte.
+    final static int PAYLOAD_LENGTH_SIZE = 4; // 4 byte.
     // --- class member variables ---
-    private final        SecureRandom rng;
-    private final        int          payloadBytesPerBlock;
-    private final        int          cipherBlockSize;
+    private final SecureRandom rng;
+    private final int payloadBytesPerBlock;
+    private final int cipherBlockSize;
 }
 //___EOF___
