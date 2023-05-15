@@ -309,8 +309,9 @@ Eine Inhaltskompression ist vorgesehen; diese dürfte insbesondere bei Textdaten
 
 ### Implementationsdetails generell
 - Alle Zahlwerte werden Big-Endian gespeichert: das Wichtigste zuerst. (Network Byte Order, konsistent mit kryptographischen Funktionen, ASN.1-Repräsentation usw.)
-- Es wird immer mindestens ein ungenutztes Zufallsbyte in den ersten Block gelegt; falls nötig, wird hierfür die MagicID gekürzt.
-- Die MagicID lautet 0x3e7ab1705AFEE410.
+- Es wird immer mindestens ein ungenutztes Zufallsbyte in den ersten Block gelegt; falls nötig, wird hierfür die MagicID
+  gekürzt.
+- Die MagicID lautet 0x3E7AB1705AFEE410.
 
 Für alle bislang definierten Versionen gilt weiter:
 - Als Größe des "inneren nonce" wird 32 bit (4 byte) gewählt. Damit bleiben bei üblicher symmetrischer Verschlüsselung pro Datenblock 12 byte für Nutzdaten; das Padding vergrößert dann seine Eingabedaten um etwas mehr als 25%.
