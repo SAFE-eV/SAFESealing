@@ -317,7 +317,7 @@ public final class InterleavedIntegrityPadding
         }
 
     // --- class constants ---
-    final static byte[] MAGIC_ID_VERSION_1_0 = {0x3E, 0x7A, (byte) 0xB1, 0x7C, 0x5A, (byte) 0xFE, (byte) 0xE4, 0x10}; // 0x3E7AB17C5AFEE410L
+    final static byte[] MAGIC_ID_VERSION_1_0 = {0x3E, 0x7A, (byte) 0xB1, 0x70, 0x5A, (byte) 0xFE, (byte) 0xE4, 0x10}; // 0x3E7AB1705AFEE410L
     private static final int MAGIC_ID_LENGTH = 8;
     public final static int NONCE_SIZE = 4; // 4 byte.
     final static int PAYLOAD_LENGTH_SIZE = 4; // 4 byte.
