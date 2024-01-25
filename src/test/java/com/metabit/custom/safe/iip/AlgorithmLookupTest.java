@@ -26,10 +26,8 @@ public class AlgorithmLookupTest
     @Test
     void testSomeLookupFunctions() throws NoSuchPaddingException, NoSuchAlgorithmException
         {
-
-
-        String testCipher = "AES/ECB/NoPadding";
-        ASN1ObjectIdentifier  testOID = SharedConstants.OID_AES_256_ECB;
+        String testCipher = "AES/ECB/NoPadding"; // with default padding, I'm afraid.
+        ASN1ObjectIdentifier testOID = SharedConstants.OID_AES_256_ECB_NOPAD;
 
         log.info("input: " + testCipher);
         Cipher symmetricCipher1 = Cipher.getInstance(testCipher, securityProvider);
@@ -43,9 +41,7 @@ public class AlgorithmLookupTest
         Cipher symmetricCipher2 = Cipher.getInstance(testOID.getId(), securityProvider);
         String algo2 = symmetricCipher2.getAlgorithm();
         log.info(algo2);
-        
-        // ---- ok, but how to get the OID from an instantiated cipher? is it possible?
-        
+
         return;
         }
     

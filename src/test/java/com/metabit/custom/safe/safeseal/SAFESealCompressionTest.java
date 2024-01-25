@@ -88,7 +88,7 @@ class SAFESealCompressionTest
 
         // ==== SENDER ====
         // ---- perform sealing
-        SAFESealSealer uwe = new SAFESealSealer(true);
+        SAFESealSealer uwe = new SAFESealSealer(0);
         uwe.setCompressionMode(compression);
         byte[] sealed = uwe.seal(senderPrivateKey, recipientPublicKey, testPayload, testUnique);
 
@@ -97,7 +97,7 @@ class SAFESealCompressionTest
 
         // ==== RECIPIENT ====
         // ---- perform revealing
-        SAFESealRevealer revealer = new SAFESealRevealer(true);
+        SAFESealRevealer revealer = new SAFESealRevealer(0);
         byte[] receivedPayload = revealer.reveal(senderPublicKey, recipientPrivateKey, sealed);
 
         // ---- test result
@@ -119,7 +119,7 @@ class SAFESealCompressionTest
 
         // ==== SENDER ====
         // ---- perform sealing
-        SAFESealSealer sealer = new SAFESealSealer(false);
+        SAFESealSealer sealer = new SAFESealSealer(1);
         sealer.setCompressionMode(compression);
         byte[] sealed = sealer.seal(rsaKeyPair.getPrivate(), null, testPayload, null);
 
@@ -130,7 +130,7 @@ class SAFESealCompressionTest
 
         // ==== RECIPIENT ====
         // ---- perform revealing
-        SAFESealRevealer revealer = new SAFESealRevealer(false);
+        SAFESealRevealer revealer = new SAFESealRevealer(1);
         byte[] receivedPayload = revealer.reveal(rsaKeyPair.getPublic(), null, sealed);
 
         // ---- test result

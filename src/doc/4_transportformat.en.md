@@ -20,18 +20,22 @@ This layer is required. Depending on encryption algorithm and its operatio mode
 additional data like IV may be required or inconsequential.
 
 ```
-CONTEXT_SPECIFIC[0]     encryption layer, version 1
+CONTEXT_SPECIFIC[0]         encryption layer, version 2
     SEQUENCE
-        OID             procedure OID 
-        CONTEXT[0]      encryption info
-            OID         encryption algorithm OID          
-        CONTEXT[1]      compression info, optionals
-            OID         compression OID (default: NONE) 
-        CONTEXT[2]      key information, optional
-            INTEGER     key size, in bit
-        CONTEXT[3]      padding nonce information, optional
-            INTEGER     padding nonce size, in bit
-        OCTET STRING    IV for encryption. required or not, depending on algorithm and operation mode.    
+        OID                 procedure OID 
+        CONTEXT[0]          encryption info
+            OID             encryption algorithm OID          
+        CONTEXT[1]          compression info, optionals
+            OID             compression OID (default: NONE) 
+        CONTEXT[2]          key information, optional
+            INTEGER         key size, in bit
+        CONTEXT[3]          padding nonce information, optional
+            INTEGER         padding nonce size, in bit
+        CONTEXT[4]          ephemeral AES key set (version 2 only, mandatory)
+            OCTET STRING    ephemeral AES key 1
+            OCTET STRING    ephemeral AES key 2
+            OCTET STRING    ephemeral AES key 3            
+        OCTET STRING        IV for encryption. required or not, depending on algorithm and operation mode.    
 ```
 
 

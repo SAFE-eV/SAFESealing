@@ -13,10 +13,15 @@ import com.metabit.custom.safe.iip.shared.CryptoFactory;
 import org.bouncycastle.asn1.ASN1ObjectIdentifier;
 import org.bouncycastle.crypto.DataLengthException;
 
-import javax.crypto.*;
+import javax.crypto.BadPaddingException;
+import javax.crypto.IllegalBlockSizeException;
+import javax.crypto.NoSuchPaddingException;
+import javax.crypto.ShortBufferException;
 import java.io.IOException;
 import java.security.*;
 import java.security.spec.InvalidKeySpecException;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.zip.DataFormatException;
 import java.util.zip.Deflater;
 import java.util.zip.Inflater;
@@ -32,20 +37,20 @@ import static com.metabit.custom.safe.iip.shared.AlgorithmSpecCollection.COMPRES
  */
 public class SAFESeal
 {
-    private TransportFormatConverter  formatConverter;
+    private final CryptoFactory cryptoFactory;
+    private TransportFormatConverter formatConverter;
     private AsymmetricEncryptionWithIIP asymmetricLayer;
     private boolean keyAgreementMode; // flag shorthand for NONE or ECDHE. later versions may use an enum.
     private boolean compressionMode; // flag shorthand for NONE or ZLIB. later versions may use an enum.
-    private final CryptoFactory cryptoFactory;
 
     /**
      * <p>Constructor for SAFESeal.</p>
      *
      * @param cf a {@link CryptoFactory} object
-     * @throws NoSuchPaddingException if any.
+     * @throws NoSuchPaddingException   if any.
      * @throws NoSuchAlgorithmException if any.
-     * @throws NoSuchProviderException if any.
-     * @throws InvalidKeyException if any.
+     * @throws NoSuchProviderException  if any.
+     * @throws InvalidKeyException      if any.
      */
     public SAFESeal(CryptoFactory cf)
             throws NoSuchPaddingException, NoSuchAlgorithmException, NoSuchProviderException, InvalidKeyException
@@ -54,145 +59,6 @@ public class SAFESeal
         this.keyAgreementMode = false;
         this.compressionMode = false;
         init();
-        }
-
-    /**
-     * set key agreement mode.
-     * @param keyAgreementUsed for RSA+IIP, set to false.
-     */
-    public void setKeyAgreementMode(final boolean keyAgreementUsed)
-        {
-        this.keyAgreementMode = keyAgreementUsed;
-        this.compressionMode = false;
-        init();
-        }
-
-    /**
-     * accessor for key agreement mode.
-     * @return true if key agreement mode is used, false if not.
-     */
-    public boolean getKeyAgreementMode() { return keyAgreementMode; }
-
-    private void init()
-        {
-        formatConverter = new TransportFormatConverter();
-        return;
-        }
-
-    /**
-     * seal contents: perform calculation of ephemeral key, padding, encryption, and formatting for transport.
-     *
-     * @param contentToSeal payload content for sealed transport
-     * @param senderKey     sender private key (caller's key)
-     * @param recipientKeys recipient public key(s)
-     * @param uniqueID      a unique ID to be provided e.g. from a monotonic counter
-     * @return wrapped and sealed message
-     * @throws NoSuchProviderException if crypto provider is unavailable
-     * @throws NoSuchAlgorithmException if algorithm could not be found
-     * @throws NoSuchPaddingException if the padding could not be found
-     * @throws BadPaddingException if the padding fails
-     * @throws InvalidKeyException if the key is invalid
-     * @throws InvalidKeySpecException if the key is invalid
-     * @throws IllegalBlockSizeException if key and algorithm don't match in regard to size.
-     * @throws IOException if IO errors occur
-     * @throws ShortBufferException if target buffer is too small
-     */
-    public byte[] seal(final byte[] contentToSeal, PrivateKey senderKey, PublicKey[] recipientKeys, final Long uniqueID)
-            throws NoSuchPaddingException, NoSuchAlgorithmException, NoSuchProviderException, InvalidKeyException,
-            IllegalBlockSizeException, InvalidKeySpecException, BadPaddingException, IOException, ShortBufferException
-        {
-        InternalTransportTuple itt;
-        if (keyAgreementMode)
-            {
-            asymmetricLayer = new ECDHEWithIntegrityPadding(cryptoFactory, AlgorithmSpecCollection.AES256ECB);
-            itt = new InternalTransportTuple(true); // ECDHE+AES...
-            itt.setDiversification(uniqueID);
-            }
-        else
-            {
-            asymmetricLayer = new RSAWithIntegrityPadding(cryptoFactory, AlgorithmSpecCollection.RSA2048);
-            itt = new InternalTransportTuple(false); // RSA
-            // no diversification needed for direct RSA application
-            }
-
-        byte[] payload;
-        if (compressionMode == false)
-            {
-            payload = contentToSeal;
-            }
-        else // if compression is activated, perform compression and set respective flag
-            {
-            payload = tryToCompress(contentToSeal, itt);
-            }
-
-        // perform asymmetric crypto, symmetric crypto, and padding
-        itt.encryptedData = asymmetricLayer.padEncryptAndPackage(payload, recipientKeys, senderKey, itt.getKeyDiversificationData());
-        itt.cryptoIV= asymmetricLayer.getSymmetricIV();
-        // format the tuple for transport
-        return formatConverter.wrapForTransport(itt);
-        }
-
-
-
-
-    /**
-     * carefully check the sealing, unseal, and return payload data.
-     * performs transport unwrapping, calculation of ephemeral key, decryption, and integrity validation.
-     * The most important Exception is the BadPaddingException which signals the integrity validation has failed.
-     *
-     * @param sealedInput an array of {@link byte} objects
-     * @param recipientKey a {@link PrivateKey} object
-     * @param senderPublicKey a {@link PublicKey} object
-     * @return payload data, when everything went OK and the integrity has been validated.
-     * @throws BadPaddingException                the integrity validation has failed.
-     * @throws NoSuchProviderException if crypto provider is unavailable
-     * @throws NoSuchAlgorithmException if algorithm could not be found
-     * @throws InvalidAlgorithmParameterException if the algorithm was called with invalid parameters
-     * @throws NoSuchPaddingException if the padding could not be found
-     * @throws BadPaddingException if the padding fails
-     * @throws InvalidKeyException if the key is invalid
-     * @throws InvalidKeySpecException if the key is invalid
-     * @throws IllegalBlockSizeException if key and algorithm don't match in regard to size.
-     * @throws IOException if IO errors occur
-     * @throws ShortBufferException if target buffer is too small
-     */
-    public byte[] reveal(final byte[] sealedInput, PrivateKey recipientKey, PublicKey senderPublicKey) // is one sender public key enough if several were used in sending?
-            throws BadPaddingException, InvalidAlgorithmParameterException, IllegalBlockSizeException,
-            NoSuchAlgorithmException, InvalidKeySpecException, InvalidKeyException, NoSuchPaddingException,
-            NoSuchProviderException, IOException, ShortBufferException
-        {
-        InternalTransportTuple tuple = formatConverter.unwrapTransportFormat(sealedInput);
-
-        ASN1ObjectIdentifier compressionOID = tuple.cryptoSettings.getCompressionOID();
-        if (compressionOID.equals(COMPRESSION_GZIP.getOID()))
-            { compressionMode = true; }
-        else if (compressionOID.equals(COMPRESSION_NONE.getOID()))
-            { compressionMode = false; } // do nothing, ignore.
-        else
-            throw new NoSuchAlgorithmException("invalid compression");
-
-        // @IMPROVEMENT for later versions: allow to for a more flexible selection of algorithms,
-        if (keyAgreementMode)
-            {
-            asymmetricLayer = new ECDHEWithIntegrityPadding(cryptoFactory, AlgorithmSpecCollection.AES256ECB);
-            }
-        else
-            {
-            asymmetricLayer = new RSAWithIntegrityPadding(cryptoFactory, AlgorithmSpecCollection.RSA2048);
-            }
-        try
-            {
-            byte[] payload = asymmetricLayer.decryptAndVerify(tuple.encryptedData, senderPublicKey, recipientKey, tuple.keyDiversificationData, tuple.cryptoIV);
-            if (compressionMode == true)
-                {
-                payload = inflateZLIBcompressedData(payload);
-                }
-            return payload;
-            }
-        catch (ArrayIndexOutOfBoundsException | DataLengthException | DataFormatException ex)
-            {
-            throw new BadPaddingException();
-            }
         }
 
     /*
@@ -221,11 +87,170 @@ public class SAFESeal
         else
             {
             payload = new byte[outputSize];
-            System.arraycopy(tmp,0,payload,0,outputSize);
+            System.arraycopy(tmp, 0, payload, 0, outputSize);
             itt.cryptoSettings.setCompressionOID(COMPRESSION_GZIP.getOID());
             }
         deflater.end();
         return payload;
+        }
+
+    /**
+     * accessor for key agreement mode.
+     *
+     * @return true if key agreement mode is used, false if not.
+     */
+    public boolean getKeyAgreementMode() {return keyAgreementMode;}
+
+    /**
+     * set key agreement mode.
+     *
+     * @param keyAgreementUsed for RSA+IIP, set to false.
+     */
+    public void setKeyAgreementMode(final boolean keyAgreementUsed)
+        {
+        this.keyAgreementMode = keyAgreementUsed;
+        this.compressionMode = false;
+        init();
+        }
+
+    private void init()
+        {
+        formatConverter = new TransportFormatConverter();
+        return;
+        }
+
+    /**
+     * seal contents: perform calculation of ephemeral key, padding, encryption, and formatting for transport.
+     *
+     * @param contentToSeal payload content for sealed transport
+     * @param senderKey     sender private key (caller's key)
+     * @param recipientKeys recipient public key(s)
+     * @param uniqueID      a unique ID to be provided e.g. from a monotonic counter
+     * @return wrapped and sealed message
+     * @throws NoSuchProviderException   if crypto provider is unavailable
+     * @throws NoSuchAlgorithmException  if algorithm could not be found
+     * @throws NoSuchPaddingException    if the padding could not be found
+     * @throws BadPaddingException       if the padding fails
+     * @throws InvalidKeyException       if the key is invalid
+     * @throws InvalidKeySpecException   if the key is invalid
+     * @throws IllegalBlockSizeException if key and algorithm don't match in regard to size.
+     * @throws IOException               if IO errors occur
+     * @throws ShortBufferException      if target buffer is too small
+     */
+    public byte[] seal(final byte[] contentToSeal, PrivateKey senderKey, PublicKey[] recipientKeys, final Long uniqueID)
+            throws NoSuchPaddingException, NoSuchAlgorithmException, NoSuchProviderException, InvalidKeyException,
+            IllegalBlockSizeException, InvalidKeySpecException, BadPaddingException, IOException, ShortBufferException
+        {
+        InternalTransportTuple itt;
+        if (keyAgreementMode)
+            {
+            asymmetricLayer = new ECDHEWithIntegrityPadding(cryptoFactory, AlgorithmSpecCollection.AES256ECB_PADDED);
+            itt = new InternalTransportTuple(true); // ECDHE+AES...
+            itt.setDiversification(uniqueID);
+            }
+        else
+            {
+            // lacking a proper API, we do this the factual way:
+            final String description = senderKey.toString();
+            Pattern keyLengthFromDescription = Pattern.compile(".+RSA private CRT key,\\s+(\\d{4})\\sbits(?m:$)");
+            Matcher matcher = keyLengthFromDescription.matcher(description);
+            if (matcher.find() == false)
+                throw new UnsupportedOperationException("could not determine key size");
+            int privateKeyLength = Integer.valueOf(matcher.group(1));
+            switch (privateKeyLength)
+                {
+                case 1024: asymmetricLayer = new RSAWithIntegrityPadding(cryptoFactory, AlgorithmSpecCollection.RSA1024); break;
+                case 2048: asymmetricLayer = new RSAWithIntegrityPadding(cryptoFactory, AlgorithmSpecCollection.RSA2048); break;
+                case 4096: asymmetricLayer = new RSAWithIntegrityPadding(cryptoFactory, AlgorithmSpecCollection.RSA4096); break;
+                default:
+                    throw new InvalidKeySpecException("key of unsupported size " + privateKeyLength);
+                }
+            itt = new InternalTransportTuple(false); // RSA
+            itt.cryptoSettings.setEncryptionKeySize(privateKeyLength);
+            // no diversification needed for direct RSA application
+            }
+
+        byte[] payload;
+        if (compressionMode == false)
+            {
+            payload = contentToSeal;
+            }
+        else // if compression is activated, perform compression and set respective flag
+            {
+            payload = tryToCompress(contentToSeal, itt);
+            }
+
+        // perform asymmetric crypto, symmetric crypto, and padding
+        itt.encryptedData = asymmetricLayer.padEncryptAndPackage(payload, recipientKeys, senderKey, itt.getKeyDiversificationData());
+        itt.cryptoIV = asymmetricLayer.getSymmetricIV();
+        // format the tuple for transport
+        return formatConverter.wrapForTransport(itt);
+        }
+
+    /**
+     * carefully check the sealing, unseal, and return payload data.
+     * performs transport unwrapping, calculation of ephemeral key, decryption, and integrity validation.
+     * The most important Exception is the BadPaddingException which signals the integrity validation has failed.
+     *
+     * @param sealedInput     an array of {@link byte} objects
+     * @param recipientKey    a {@link PrivateKey} object
+     * @param senderPublicKey a {@link PublicKey} object
+     * @return payload data, when everything went OK and the integrity has been validated.
+     * @throws BadPaddingException                the integrity validation has failed.
+     * @throws NoSuchProviderException            if crypto provider is unavailable
+     * @throws NoSuchAlgorithmException           if algorithm could not be found
+     * @throws InvalidAlgorithmParameterException if the algorithm was called with invalid parameters
+     * @throws NoSuchPaddingException             if the padding could not be found
+     * @throws BadPaddingException                if the padding fails
+     * @throws InvalidKeyException                if the key is invalid
+     * @throws InvalidKeySpecException            if the key is invalid
+     * @throws IllegalBlockSizeException          if key and algorithm don't match in regard to size.
+     * @throws IOException                        if IO errors occur
+     * @throws ShortBufferException               if target buffer is too small
+     */
+    public byte[] reveal(final byte[] sealedInput, PrivateKey recipientKey, PublicKey senderPublicKey) // is one sender public key enough if several were used in sending?
+            throws BadPaddingException, InvalidAlgorithmParameterException, IllegalBlockSizeException,
+            NoSuchAlgorithmException, InvalidKeySpecException, InvalidKeyException, NoSuchPaddingException,
+            NoSuchProviderException, IOException, ShortBufferException
+        {
+        InternalTransportTuple tuple = formatConverter.unwrapTransportFormat(sealedInput);
+
+        ASN1ObjectIdentifier compressionOID = tuple.cryptoSettings.getCompressionOID();
+        if (compressionOID.equals(COMPRESSION_GZIP.getOID()))
+            {compressionMode = true;}
+        else if (compressionOID.equals(COMPRESSION_NONE.getOID()))
+            {compressionMode = false;} // do nothing, ignore.
+        else
+            throw new NoSuchAlgorithmException("invalid compression");
+
+        // @IMPROVEMENT for later versions: allow to for a more flexible selection of algorithms.
+        if (keyAgreementMode)
+            {
+            asymmetricLayer = new ECDHEWithIntegrityPadding(cryptoFactory, AlgorithmSpecCollection.AES256ECB_PADDED);
+            }
+        else
+            {
+            switch (tuple.cryptoSettings.getEncryptionKeySize())
+                {
+                case 1024: asymmetricLayer = new RSAWithIntegrityPadding(cryptoFactory, AlgorithmSpecCollection.RSA1024); break;
+                case 2048: asymmetricLayer = new RSAWithIntegrityPadding(cryptoFactory, AlgorithmSpecCollection.RSA2048); break;
+                case 4096: asymmetricLayer = new RSAWithIntegrityPadding(cryptoFactory, AlgorithmSpecCollection.RSA4096); break;
+                default: throw new InvalidKeyException("specified key size not supported");
+                }
+            }
+        try
+            {
+            byte[] payload = asymmetricLayer.decryptAndVerify(tuple.encryptedData, senderPublicKey, recipientKey, tuple.keyDiversificationData, tuple.cryptoIV);
+            if (compressionMode == true)
+                {
+                payload = inflateZLIBcompressedData(payload);
+                }
+            return payload;
+            }
+        catch (ArrayIndexOutOfBoundsException | DataLengthException | DataFormatException ex)
+            {
+            throw new BadPaddingException();
+            }
         }
 
     /*
@@ -252,7 +277,7 @@ public class SAFESeal
                 throw new IllegalArgumentException("input compression level not handled");
             inflater.reset();
             }
-        while (tmpSize==outputSize); // if the temp buffer was completely full, we need to try again with a larger buffer.
+        while (tmpSize == outputSize); // if the temp buffer was completely full, we need to try again with a larger buffer.
 
         // now performing actual decompression
         byte[] result = new byte[outputSize];
@@ -261,11 +286,12 @@ public class SAFESeal
         inflater.end();
         return result;
         }
-    public void setCompressionMode(final boolean compressionMode)
-        {  this.compressionMode = compressionMode; }
 
     public boolean getCompressionMode()
-        { return compressionMode; }
+        {return compressionMode;}
+
+    public void setCompressionMode(final boolean compressionMode)
+        {this.compressionMode = compressionMode;}
 }
 //___EOF___
 

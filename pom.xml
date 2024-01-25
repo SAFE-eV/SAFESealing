@@ -6,7 +6,7 @@
 	<groupId>com.metabit.custom.safe</groupId>
 	<artifactId>safesealing</artifactId>
 	<packaging>jar</packaging>
-	<version>0.7.2-SNAPSHOT</version>
+	<version>0.9.2</version>
 	<name>SAFEevSealing</name>
 
 	<licenses>
@@ -31,12 +31,11 @@
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 		<maven.compiler.source>8</maven.compiler.source>
 		<maven.compiler.target>8</maven.compiler.target>
-		<lombok.version>1.18.26</lombok.version>
-		<slf4j.version>2.0.5</slf4j.version>
+		<lombok.version>1.18.30</lombok.version>
+		<slf4j.version>2.0.9</slf4j.version>
 		<semver.version>0.9.33</semver.version>
-		<stringtemplate.version>4.3.4</stringtemplate.version>
 		<commons-cli.version>1.5.0</commons-cli.version>
-		<junit.version>5.9.2</junit.version>
+		<junit.version>5.10.0</junit.version>
 		<mainclass>com.metabit.custom.safe.safeseal.CommandLineMain</mainclass>
 	</properties>
 
@@ -66,6 +65,7 @@
 			<artifactId>bcprov-jdk15on</artifactId>
 			<version>1.70</version>
 		</dependency -->
+		<!-- simpler ASN.1 DER support -->
 		<!-- dependency>
 			<groupId>org.metabit.library.format.tlv</groupId>
 			<artifactId>TLVIterator</artifactId>
@@ -76,7 +76,7 @@
 		<dependency>
 			<groupId>info.picocli</groupId>
 			<artifactId>picocli</artifactId>
-			<version>4.7.1</version>
+			<version>4.7.5</version>
 		</dependency>
 
 		<!-- reducing java boilerplate code -->
@@ -112,6 +112,21 @@
 			<artifactId>junit-jupiter-params</artifactId>
 			<version>${junit.version}</version>
 			<scope>test</scope>
+		</dependency>
+		<!-- not available publicly yet -->
+		<dependency>
+			<groupId>org.metabit.library.misc</groupId>
+			<artifactId>utils</artifactId>
+			<version>0.1.15-SNAPSHOT</version>
+			<scope>test</scope>
+			<!--
+			referencing the local JAR file contained in the repository
+			was possible this way
+			<scope>system</scope>
+			<systemPath>${project.basedir}/src/test/resources/lib/utils-0.1.15-SNAPSHOT.jar</systemPath>
+	 		but has been deprecated.  no viable alternative has been offered by maven maintainers, yet.
+			see [MNG-6523](https://issues.apache.org/jira/browse/MNG-6523) -
+			-->
 		</dependency>
 
 	</dependencies>
@@ -167,11 +182,15 @@
 					<shadedClassifierName>runnable</shadedClassifierName>
 					<filters>
 						<filter>
+							<!-- ignore metadata which is known to overlap between dependencies -->
 							<artifact>*:*</artifact>
 							<excludes>
 								<exclude>META-INF/*.SF</exclude>
 								<exclude>META-INF/*.DSA</exclude>
 								<exclude>META-INF/*.RSA</exclude>
+								<exclude>META-INF.versions.9.module-info</exclude>
+								<exclude>META-INF/MANIFEST.MF</exclude>
+								<exclude>META-INF/LICENSE.txt</exclude>
 							</excludes>
 						</filter>
 					</filters>
@@ -231,6 +250,33 @@
 						<version>5.3.2</version>
 					</dependency>
 				</dependencies>
+			</plugin>
+
+			<!-- make packaged library available to local repository.
+				 The better option, system/systempath dependency, has been deprecated.
+			 -->
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-install-plugin</artifactId>
+				<version>2.5.2</version>
+				<executions>
+					<execution>
+						<id>install-external</id>
+						<phase>process-resources</phase>
+						<configuration>
+							<file>${basedir}/src/test/resources/lib/utils-0.1.15-SNAPSHOT.jar</file>
+							<repositoryLayout>default</repositoryLayout>
+							<groupId>org.metabit.library.misc</groupId>
+							<artifactId>utils</artifactId>
+							<version>0.1.15-SNAPSHOT</version>
+							<packaging>jar</packaging>
+							<generatePom>true</generatePom>
+						</configuration>
+						<goals>
+							<goal>install-file</goal>
+						</goals>
+					</execution>
+				</executions>
 			</plugin>
 		</plugins>
 	</build>

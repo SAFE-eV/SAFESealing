@@ -62,12 +62,12 @@ class AttackTest
 
         // ==== SENDER ====
         // ---- perform sealing
-        SAFESealSealer uwe = new SAFESealSealer(false);
+        SAFESealSealer uwe = new SAFESealSealer(1);
         byte[] sealed = uwe.seal(rsaKeyPair.getPrivate(), null, testPayload, null);
 
         // ==== RECIPIENT ====
         // ---- perform revealing
-        SAFESealRevealer revealer = new SAFESealRevealer(false);
+        SAFESealRevealer revealer = new SAFESealRevealer(1);
         // the "good" case.
         byte[] receivedPayload = revealer.reveal(rsaKeyPair.getPublic(), null, sealed);
         assertArrayEquals(testPayload, receivedPayload);
@@ -110,13 +110,13 @@ class AttackTest
 
         // ==== SENDER ====
         // ---- perform sealing
-        SAFESealSealer uwe = new SAFESealSealer(true);
+        SAFESealSealer uwe = new SAFESealSealer(0);
         byte[] sealed = uwe.seal(senderPrivateKey, recipientPublicKey, testPayload, testUnique);
 
 
         // ==== RECIPIENT ====
         // ---- perform revealing
-        SAFESealRevealer revealer = new SAFESealRevealer(true);
+        SAFESealRevealer revealer = new SAFESealRevealer(0);
         byte[] receivedPayload = revealer.reveal(senderPublicKey, recipientPrivateKey, sealed);
         assertArrayEquals(testPayload,receivedPayload);
 

@@ -25,8 +25,8 @@ public class SymmetricEncryptionWithIntegrityPadding
     static final String[] CHAINING_WITHOUT_DIFFUSION = {"CFB", "OFB", "CTR", "GCM"};
     private SecureRandom rng;
     private Cipher cipher;
-    private int                         cipherBlockSize;
-    private InterleavedIntegrityPadding integrityPaddingInstance;
+    private int    cipherBlockSize;
+    private InterleavedIntegrityPadding_V1_0 integrityPaddingInstance;
 
     /**
      * <p>Constructor for SymmetricEncryptionWithIntegrityPadding.</p>
@@ -55,7 +55,7 @@ public class SymmetricEncryptionWithIntegrityPadding
         {
         this.cipherBlockSize = cipher.getBlockSize();
         this.cipher = cipher;
-        this.integrityPaddingInstance = new InterleavedIntegrityPadding(cipherBlockSize);
+        this.integrityPaddingInstance = new InterleavedIntegrityPadding_V1_0(cipherBlockSize);
         this.rng = new SecureRandom();
         //@IMPROVEMENT dynamic IV size, according to cipher?
         }

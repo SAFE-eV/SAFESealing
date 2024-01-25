@@ -20,20 +20,23 @@ Diese Ebene ist notwendig. Je nach Verschlüsselungsverfahren (RSA oder AES)
 sind weitere Daten wie IV notwendig bzw. überflüssig.
 
 ```
-CONTEXT_SPECIFIC[0]  Verschluesselungs-Ebene enthält in Version 1:
+CONTEXT_SPECIFIC[0]  Verschluesselungs-Ebene enthält in Version 2:
     SEQUENCE
-        OID             Kennung des Verfahrens
-        CONTEXT[0]      informationen über die Verschlüsselung
-            OID         Kennung des Verschlüsselungsverfahrens          
-        CONTEXT[1]      Informationen über optionale Kompression
-            OID         Kennung des Kompressionsverfahrens (default: NONE) 
-        CONTEXT[2]      optionale Angabe der Schlüsselgröße
-            INTEGER     Schlüsselgröße, in bit
-        CONTEXT[3]      optionale Angabe der Nonce-Größe (in Version 1 nicht genutzt)
-            INTEGER     Nonce-Größe, in bit        
-        OCTET STRING    IV des symmetrischen Verschlüsselungsverfahrens (kann z.B. bei RSA und AES/ECB weggelassen werden)   
+        OID                 Kennung des Verfahrens
+        CONTEXT[0]          informationen über die Verschlüsselung
+            OID             Kennung des Verschlüsselungsverfahrens          
+        CONTEXT[1]          Informationen über optionale Kompression
+            OID             Kennung des Kompressionsverfahrens (default: NONE) 
+        CONTEXT[2]          optionale Angabe der Schlüsselgröße
+            INTEGER         Schlüsselgröße, in bit
+        CONTEXT[3]          optionale Angabe der Nonce-Größe (in Version 1 nicht genutzt)
+            INTEGER         Nonce-Größe, in bit        
+        CONTEXT[4]          ephemeral AES key set (nur version 2, dort Pflicht)
+            OCTET STRING    ephemeral AES key 1
+            OCTET STRING    ephemeral AES key 2
+            OCTET STRING    ephemeral AES key 3            
+        OCTET STRING        IV des symmetrischen Verschlüsselungsverfahrens.    
 ```
-
 
 ## Schlüsselaustausch-Ebene
 

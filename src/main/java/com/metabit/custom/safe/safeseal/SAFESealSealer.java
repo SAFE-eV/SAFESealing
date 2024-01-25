@@ -5,6 +5,7 @@
  */
 package com.metabit.custom.safe.safeseal;
 
+import com.metabit.custom.safe.iip2.SAFESeal2;
 import com.metabit.custom.safe.safeseal.impl.CryptoFactoryImpl;
 import com.metabit.custom.safe.safeseal.impl.SAFESeal;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
@@ -25,34 +26,30 @@ import java.security.spec.InvalidKeySpecException;
  */
 public class SAFESealSealer
 {
-    private boolean keyAgreementMode;
     private CryptoFactoryImpl cryptoFactory;
     private Provider securityProvider;
     private boolean compressionMode;
+    private int     version;
 
     /** default constructor (recommended) */
     public SAFESealSealer()
         {
-        this.keyAgreementMode = false;
+        this.version = 2;
         init();
         }
 
     /**
-     * constructor with default algorithm setup.
+     * constructor.
      *
-     * @param advanced set to false for standard RSA+IIP encryption.
+     * @param version algorithm version to use.
+     *                1 for UUP with RSA
+     *                2 for IPS with RSA and triple AES
      */
-    public SAFESealSealer(boolean advanced)
+    public SAFESealSealer(final int version)
         {
-        this.keyAgreementMode = advanced;
+        this.version = version;
         init();
         }
-
-    /**
-     * activate or deactivate key agreement protocol mode. default: off
-     * @param flag false to turn off, true to turn on. default: off.
-     */
-    public void setKeyAgreementMode(boolean flag)   { this.keyAgreementMode = flag; }
 
     /**
      * activate or deactivate content compression mode. default: off
@@ -106,19 +103,65 @@ public class SAFESealSealer
         {
         try
             {
-            SAFESeal sealer = new SAFESeal(cryptoFactory);
-            sealer.setKeyAgreementMode(keyAgreementMode);
-            sealer.setCompressionMode(compressionMode);
-            PublicKey[] publicKeys = new PublicKey[1];
-            publicKeys[0] = singleRecipientPublicKey;
-            byte[] payload = sealer.seal(payloadToSeal, senderPrivateKey, publicKeys, uniqueID);
-            return payload;
+            switch (version)
+                {
+                case 0:
+                    return seal0(senderPrivateKey, singleRecipientPublicKey, payloadToSeal, uniqueID);
+                case 1:
+                    return seal1(senderPrivateKey, singleRecipientPublicKey, payloadToSeal, uniqueID);
+                case 2:
+                    return seal2(senderPrivateKey, singleRecipientPublicKey, payloadToSeal, uniqueID);
+                default:
+                    throw new UnsupportedOperationException("version not supported");
+                }
             }
         catch (NoSuchPaddingException | IllegalBlockSizeException | NoSuchAlgorithmException | InvalidKeySpecException | InvalidKeyException |
                ShortBufferException | NoSuchProviderException | IOException e)
             {
             throw new RuntimeException(e);
             }
+        catch (InvalidAlgorithmParameterException e)
+            {
+            throw new RuntimeException(e);
+            }
+        }
+
+    private byte[] seal2(PrivateKey senderPrivateKey, PublicKey singleRecipientPublicKey, byte[] payloadToSeal, Long uniqueID)
+            throws NoSuchPaddingException, NoSuchAlgorithmException, NoSuchProviderException, InvalidKeyException, InvalidAlgorithmParameterException, IllegalBlockSizeException, ShortBufferException,
+            InvalidKeySpecException, BadPaddingException, IOException
+        {
+        SAFESeal2 sealer = new SAFESeal2(cryptoFactory, 2, 0);
+        sealer.setCompressionMode(compressionMode);
+        PublicKey[] publicKeys = new PublicKey[1];
+        publicKeys[0] = singleRecipientPublicKey;
+        byte[] payload = sealer.seal(payloadToSeal, senderPrivateKey, publicKeys, uniqueID);
+        return payload;
+        }
+
+    private byte[] seal1(PrivateKey senderPrivateKey, PublicKey singleRecipientPublicKey, byte[] payloadToSeal, Long uniqueID)
+            throws NoSuchPaddingException, NoSuchAlgorithmException, NoSuchProviderException, InvalidKeyException, IllegalBlockSizeException, InvalidKeySpecException, BadPaddingException, IOException,
+            ShortBufferException
+        {
+        SAFESeal sealer = new SAFESeal(cryptoFactory);
+        sealer.setKeyAgreementMode(false);
+        sealer.setCompressionMode(compressionMode);
+        PublicKey[] publicKeys = new PublicKey[1];
+        publicKeys[0] = singleRecipientPublicKey;
+        byte[] payload = sealer.seal(payloadToSeal, senderPrivateKey, publicKeys, uniqueID);
+        return payload;
+        }
+
+    private byte[] seal0(PrivateKey senderPrivateKey, PublicKey singleRecipientPublicKey, byte[] payloadToSeal, Long uniqueID)
+            throws NoSuchPaddingException, NoSuchAlgorithmException, NoSuchProviderException, InvalidKeyException, IllegalBlockSizeException, InvalidKeySpecException, BadPaddingException, IOException,
+            ShortBufferException
+        {
+        SAFESeal sealer = new SAFESeal(cryptoFactory);
+        sealer.setKeyAgreementMode(true);
+        sealer.setCompressionMode(compressionMode);
+        PublicKey[] publicKeys = new PublicKey[1];
+        publicKeys[0] = singleRecipientPublicKey;
+        byte[] payload = sealer.seal(payloadToSeal, senderPrivateKey, publicKeys, uniqueID);
+        return payload;
         }
 }
 //___EOF___

@@ -32,7 +32,7 @@ public class RSAWithIntegrityPadding implements AsymmetricEncryptionWithIIP
     private final AlgorithmSpec algorithmSpec;
     private final Cipher cipher;
     private final SecureRandom rng;
-    private final InterleavedIntegrityPadding integrityPaddingInstance;
+    private final InterleavedIntegrityPadding_V1_0 integrityPaddingInstance;
 
     /**
      * <p>Constructor for RSAWithIntegrityPadding.</p>
@@ -52,7 +52,7 @@ public class RSAWithIntegrityPadding implements AsymmetricEncryptionWithIIP
         this.rng = new SecureRandom();
 
         cipher = cf.getCipherFromCipherSpec(algorithmSpec);
-        integrityPaddingInstance = new InterleavedIntegrityPadding(algorithmSpec.getUsableBlockSize());
+        integrityPaddingInstance = new InterleavedIntegrityPadding_V1_0(algorithmSpec.getUsableBlockSize());
         }
 
 

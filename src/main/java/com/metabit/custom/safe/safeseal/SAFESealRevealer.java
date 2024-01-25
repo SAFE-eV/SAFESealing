@@ -5,6 +5,7 @@
  */
 package com.metabit.custom.safe.safeseal;
 
+import com.metabit.custom.safe.iip2.SAFESeal2;
 import com.metabit.custom.safe.safeseal.impl.CryptoFactoryImpl;
 import com.metabit.custom.safe.safeseal.impl.SAFESeal;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
@@ -27,18 +28,18 @@ import java.util.zip.Inflater;
  */
 public class SAFESealRevealer
 {
-    private final boolean keyAgreement;
+    private final int version;
     private Provider securityProvider;
     private final CryptoFactoryImpl cryptoFactory;
 
     /**
      * constructor with default algorithm setup.
      *
-     * @param useKeyAgreement true if ECDHE key agreement is to be used, false for RSA+IIP
+     * @param version 0 for ECDHE experiment, 1 for IIP v1 (RSA/IIP), 2 for IIP v2 (RSA,AES,IIP2).
      */
-    public SAFESealRevealer(boolean useKeyAgreement)
+    public SAFESealRevealer(final int version)
         {
-        this.keyAgreement = useKeyAgreement;
+        this.version = version;
         securityProvider = Security.getProvider("BC");
         if (securityProvider == null)
             {
@@ -81,9 +82,18 @@ public class SAFESealRevealer
         {
         try
             {
-            SAFESeal revealer = new SAFESeal(cryptoFactory);
-            revealer.setKeyAgreementMode(keyAgreement);
-            return revealer.reveal(sealedMessage, recipientPrivateKey, singleSenderPublicKey);
+            switch (version)
+                {
+                default:
+                    throw new UnsupportedOperationException("version not supported");
+                case 0:
+                    return reveal0(singleSenderPublicKey, recipientPrivateKey, sealedMessage);
+                case 1:
+                    return reveal1(singleSenderPublicKey, recipientPrivateKey, sealedMessage);
+                case 2:
+                    return reveal2(singleSenderPublicKey, recipientPrivateKey, sealedMessage);
+                }
+
             }
         catch (InvalidAlgorithmParameterException | IllegalBlockSizeException | NoSuchAlgorithmException | InvalidKeySpecException | InvalidKeyException |
                NoSuchPaddingException | ShortBufferException | IllegalArgumentException | IOException | NoSuchProviderException e)
@@ -92,8 +102,31 @@ public class SAFESealRevealer
             }
         }
 
+    private byte[] reveal2(PublicKey singleSenderPublicKey, PrivateKey recipientPrivateKey, byte[] sealedMessage)
+            throws NoSuchPaddingException, NoSuchAlgorithmException, NoSuchProviderException, InvalidKeyException, InvalidAlgorithmParameterException, IllegalBlockSizeException, ShortBufferException,
+            BadPaddingException, InvalidKeySpecException, IOException
+        {
 
+        SAFESeal2 revealer = new SAFESeal2(cryptoFactory, 2, 0);
+        return revealer.reveal(sealedMessage, recipientPrivateKey, singleSenderPublicKey);
+        }
 
+    private byte[] reveal1(PublicKey singleSenderPublicKey, PrivateKey recipientPrivateKey, byte[] sealedMessage)
+            throws NoSuchPaddingException, NoSuchAlgorithmException, NoSuchProviderException, InvalidKeyException, BadPaddingException, InvalidAlgorithmParameterException, IllegalBlockSizeException,
+            InvalidKeySpecException, IOException, ShortBufferException
+        {
+        SAFESeal revealer = new SAFESeal(cryptoFactory);
+        revealer.setKeyAgreementMode(false);
+        return revealer.reveal(sealedMessage, recipientPrivateKey, singleSenderPublicKey);
+        }
 
+    private byte[] reveal0(PublicKey singleSenderPublicKey, PrivateKey recipientPrivateKey, byte[] sealedMessage)
+            throws NoSuchPaddingException, NoSuchAlgorithmException, NoSuchProviderException, InvalidKeyException, BadPaddingException, InvalidAlgorithmParameterException, IllegalBlockSizeException,
+            InvalidKeySpecException, IOException, ShortBufferException
+        {
+        SAFESeal revealer = new SAFESeal(cryptoFactory);
+        revealer.setKeyAgreementMode(true);
+        return revealer.reveal(sealedMessage, recipientPrivateKey, singleSenderPublicKey);
+        }
 }
 //___EOF___
