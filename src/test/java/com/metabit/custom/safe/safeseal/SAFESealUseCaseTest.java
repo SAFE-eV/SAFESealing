@@ -46,7 +46,7 @@ class SAFESealUseCaseTest
         Long testUnique = System.currentTimeMillis();
         // ==== SENDER ====
         // ---- perform sealing
-        SAFESealSealer uwe = new SAFESealSealer(true);
+        SAFESealSealer uwe = new SAFESealSealer(0);
         byte[] sealed = uwe.seal(senderPrivateKey, recipientPublicKey, testPayload, testUnique);
         //---- in between here, the transport would take place
 // debug outputs
@@ -56,7 +56,7 @@ class SAFESealUseCaseTest
 // Files.write(dummy.toPath(), sealed);
         // ==== RECIPIENT ====
         // ---- perform revealing
-        SAFESealRevealer revealer = new SAFESealRevealer(true);
+        SAFESealRevealer revealer = new SAFESealRevealer(0);
         byte[] receivedPayload = revealer.reveal(senderPublicKey, recipientPrivateKey, sealed);
         // ---- test result
         assertArrayEquals(testPayload, receivedPayload);
@@ -75,7 +75,7 @@ class SAFESealUseCaseTest
         Long testUnique = System.currentTimeMillis();
         // ==== SENDER ====
         // ---- perform sealing
-        SAFESealSealer uwe = new SAFESealSealer(false);
+        SAFESealSealer uwe = new SAFESealSealer(1);
         byte[] sealed = uwe.seal(rsaKeyPair.getPrivate(), null, testPayload, null);
 //---- in between here, the transport would take place
 //        log.info("\n" + HexDump.bytesToHexString(sealed, " ", 16));
@@ -85,7 +85,7 @@ class SAFESealUseCaseTest
         //---- in between here, the transport would take place
         // ==== RECIPIENT ====
         // ---- perform revealing
-        SAFESealRevealer revealer = new SAFESealRevealer(false);
+        SAFESealRevealer revealer = new SAFESealRevealer(1);
         byte[] receivedPayload = revealer.reveal(rsaKeyPair.getPublic(), null, sealed);
         // ---- test result
         assertArrayEquals(testPayload, receivedPayload);

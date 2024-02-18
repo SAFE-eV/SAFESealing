@@ -62,7 +62,7 @@ class TransportFormatConverterTest
         Long   testUnique  = System.currentTimeMillis();
         
         // ---- perform sealing
-        SAFESealSealer uwe = new SAFESealSealer(true);
+        SAFESealSealer uwe = new SAFESealSealer(0);
         byte[] sealed = uwe.seal(senderPrivateKey, recipientPublicKey, testPayload, testUnique);
         
         log.info("sealing test");
@@ -71,7 +71,7 @@ class TransportFormatConverterTest
         //---- in between here, the transport would take place
 
         // ---- perform revealing
-        SAFESealRevealer revealer = new SAFESealRevealer(true);
+        SAFESealRevealer revealer = new SAFESealRevealer(0);
         byte[] receivedPayload = revealer.reveal(senderPublicKey, recipientPrivateKey, sealed);
         
         // ---- test result

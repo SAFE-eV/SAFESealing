@@ -179,7 +179,7 @@ public class RSAEncryptionTest
         kpg.initialize(new RSAKeyGenParameterSpec(keysize, RSAKeyGenParameterSpec.F4));
         KeyPair senderKeypair = kpg.generateKeyPair();
 
-        InterleavedIntegrityPadding integrityPaddingInstance = new InterleavedIntegrityPadding(usable_blocksize);
+        InterleavedIntegrityPadding_V1_0 integrityPaddingInstance = new InterleavedIntegrityPadding_V1_0(usable_blocksize);
 
         byte[] data = "dummy data".getBytes(StandardCharsets.UTF_8);
         // padding

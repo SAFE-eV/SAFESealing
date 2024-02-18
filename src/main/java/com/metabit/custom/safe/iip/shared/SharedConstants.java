@@ -26,8 +26,6 @@ import java.util.Set;
  */
 public final class SharedConstants
 {
-    /** Constant <code>SAFE_SEAL_VERSION</code> */
-    public static Integer SAFE_SEAL_VERSION = 1;
     /** Constant <code>OID_SAFE_SEAL</code> */
     public final static ASN1ObjectIdentifier OID_SAFE_SEAL = new ASN1ObjectIdentifier("1.3.6.1.4.1.60279.1.1");
     /** Constant <code>OID_SAFE_SEAL_AUTH</code> */
@@ -133,17 +131,21 @@ public final class SharedConstants
 
     /** Constant <code>OID_AES_128_ECB</code> */
     public final static ASN1ObjectIdentifier OID_AES_128_ECB = new ASN1ObjectIdentifier("2.16.840.1.101.3.4.1.1");
-    /** Constant <code>OID_AES_128_CBC</code> */
-    public final static ASN1ObjectIdentifier OID_AES_128_CBC = new ASN1ObjectIdentifier("2.16.840.1.101.3.4.1.2");
+    /** Constant NIST <code>OID_AES_128_CBC</code> <em>with padding</em> - the information about this is hidden and only found in the OID database. */
+    public final static ASN1ObjectIdentifier OID_AES_128_CBC_PAD = new ASN1ObjectIdentifier("2.16.840.1.101.3.4.1.2");
+    public final static ASN1ObjectIdentifier OID_AES_128_CBC_NOPAD = new ASN1ObjectIdentifier("1.3.6.1.4.1.21876.1.1.1.2.1.2");
     /** Constant <code>OID_AES_192_ECB</code> */
     public final static ASN1ObjectIdentifier OID_AES_192_ECB = new ASN1ObjectIdentifier("2.16.840.1.101.3.4.1.21");
-    /** Constant <code>OID_AES_192_CBC</code> */
-    public final static ASN1ObjectIdentifier OID_AES_192_CBC = new ASN1ObjectIdentifier("2.16.840.1.101.3.4.1.22");
+    /** Constant NIST <code>OID_AES_192_CBC</code> <em>with padding</em> - the information about this is hidden and only found in the OID database. */
+    public final static ASN1ObjectIdentifier OID_AES_192_CBC_PAD = new ASN1ObjectIdentifier("2.16.840.1.101.3.4.1.22");
+    public final static ASN1ObjectIdentifier OID_AES_192_CBC_NOPAD = new ASN1ObjectIdentifier("1.3.6.1.4.1.21876.1.1.1.2.1.41");
 
     /** Constant <code>OID_AES_256_ECB</code> */
-    public final static ASN1ObjectIdentifier OID_AES_256_ECB = new ASN1ObjectIdentifier("2.16.840.1.101.3.4.1.41");
-    /** Constant <code>OID_AES_256_CBC</code> */
-    public final static ASN1ObjectIdentifier OID_AES_256_CBC = new ASN1ObjectIdentifier("2.16.840.1.101.3.4.1.42");
+    public final static ASN1ObjectIdentifier OID_AES_256_ECB_NOPAD = new ASN1ObjectIdentifier("2.16.840.1.101.3.4.1.41");
+    /** Constant NIST <code>OID_AES_256_CBC</code> <em>with padding</em> - the information about this is hidden and only found in the OID database. */
+    public final static ASN1ObjectIdentifier OID_AES_256_CBC_PAD   = new ASN1ObjectIdentifier("2.16.840.1.101.3.4.1.42"); // aes256-CBC-PAD(42)
+    /** no-padding OID specifically derived as alternative to the padding */
+    public final static ASN1ObjectIdentifier OID_AES_256_CBC_NOPAD = new ASN1ObjectIdentifier("1.3.6.1.4.1.21876.1.1.1.2.1.42");
 
     // ---- used for key derivation only ----
     // RFC8017:   id-sha512    OBJECT IDENTIFIER ::= { joint-iso-itu-t (2) country (16) us (840) organization (1) gov (101) csor (3) nistalgorithm (4) hashalgs (2) 3 }
@@ -243,11 +245,13 @@ public final class SharedConstants
 
     /** Constant <code>OID_IIP_ALGORITHM</code> */
     public final static ASN1ObjectIdentifier OID_IIP_ALGORITHM = new ASN1ObjectIdentifier("1.3.6.1.4.1.21876.4.3.1");
+    public final static ASN1ObjectIdentifier OID_IIP2_ALGORITHM = new ASN1ObjectIdentifier("1.3.6.1.4.1.21876.4.3.2");
     private static final Map<ASN1ObjectIdentifier, String> paddings = new HashMap();
 
     static
         {
         paddings.put(OID_IIP_ALGORITHM, "IIP");
+        paddings.put(OID_IIP2_ALGORITHM, "IIP2");
         }
 
     private static final Map<ASN1ObjectIdentifier, String> combinedForwardMap = new HashMap<>();

@@ -5,7 +5,7 @@
  */
 package com.metabit.custom.safe.safeseal.impl;
 
-import com.metabit.custom.safe.iip.InterleavedIntegrityPadding;
+import com.metabit.custom.safe.iip.InterleavedIntegrityPadding_V1_0;
 import org.bouncycastle.asn1.*;
 
 import java.io.ByteArrayOutputStream;
@@ -58,17 +58,36 @@ public class TransportFormatConverter
 
         // using bouncy castle. easier with TLVIterator in a later version
         //----
-        // prepare first part
+        // prepare first part:
         ASN1EncodableVector encryptionPart = new ASN1EncodableVector();
-        encryptionPart.add(OID_IIP_ALGORITHM); // or wrap in context[1] ?
+        switch (ids.getProtocolVersion()) // this is also the check for the protocol version validity.
+            {
+            case 1:
+                encryptionPart.add(OID_IIP_ALGORITHM);
+                break;
+            case 2:
+                encryptionPart.add(OID_IIP2_ALGORITHM);
+                break;
+            default:
+                throw new IllegalArgumentException("invalid protocol version");
+            }
+
         encryptionPart.add(new DERTaggedObject(BERTags.CONTEXT_SPECIFIC, 0, encryptionOID));
         if (compressionOID!= null) // may be omitted
             encryptionPart.add(new DERTaggedObject(BERTags.CONTEXT_SPECIFIC, 1, compressionOID));
         if (true)
             encryptionPart.add(new DERTaggedObject(BERTags.CONTEXT_SPECIFIC, 2, new ASN1Integer(ids.cryptoSettings.getEncryptionKeySize())));
         if (false)
-            encryptionPart.add(new DERTaggedObject(BERTags.CONTEXT_SPECIFIC, 3, new ASN1Integer(InterleavedIntegrityPadding.NONCE_SIZE * 8)));
-
+            encryptionPart.add(new DERTaggedObject(BERTags.CONTEXT_SPECIFIC, 3, new ASN1Integer(InterleavedIntegrityPadding_V1_0.NONCE_SIZE*8)));
+        if (ids.getProtocolVersion() == 2)
+            {
+            // add the three ephemeral keys
+            ASN1EncodableVector ephemeralSymmetricKeys = new ASN1EncodableVector();
+            ephemeralSymmetricKeys.add(new DEROctetString(ids.getEphemeralSymmetricKeyBytes(1)));
+            ephemeralSymmetricKeys.add(new DEROctetString(ids.getEphemeralSymmetricKeyBytes(2)));
+            ephemeralSymmetricKeys.add(new DEROctetString(ids.getEphemeralSymmetricKeyBytes(3)));
+            encryptionPart.add(new DERTaggedObject(BERTags.CONTEXT_SPECIFIC, 4, new DERSequence(ephemeralSymmetricKeys)));
+            }
         if (ids.cryptoIV != null) //@TODO check reader must accept absence
             encryptionPart.add(new DEROctetString(ids.cryptoIV));
         DERTaggedObject firstSequence  = new DERTaggedObject(BERTags.APPLICATION, 0, new DERSequence(encryptionPart));
@@ -104,7 +123,7 @@ public class TransportFormatConverter
         ByteArrayOutputStream bufferStream = new ByteArrayOutputStream(); // will resize automatically
         DERSequenceGenerator out = new DERSequenceGenerator(bufferStream);
         out.addObject(OID_SAFE_SEAL);
-        out.addObject(new ASN1Integer(SAFE_SEAL_VERSION));
+        out.addObject(new ASN1Integer(ids.getProtocolVersion()));
         out.addObject(firstSequence);
         out.addObject(secondSequence);
         out.addObject(thirdSequence);
@@ -144,21 +163,21 @@ public class TransportFormatConverter
                 {
                 default:
                     throw new IllegalArgumentException("format version not supported");
-                
-                case 1: // SAFE_SEAL_VERSION: // OK, let's continue.
+
+                case 1: // SAFE_SEAL_VERSION_1 : // OK, let's continue.
+                case 2: // SAFE_SEAL_VERSION_2 with IIP2 -- slightly different encryption part
                     // read according to expected structure.
                     encryptionPart = ASN1TaggedObject.getInstance(seq.getObjectAt(2), BERTags.APPLICATION, 0);
                     keyAgreementPart = ASN1TaggedObject.getInstance(seq.getObjectAt(3), BERTags.APPLICATION, 1);
                     authPart = ASN1TaggedObject.getInstance(seq.getObjectAt(4), BERTags.APPLICATION, 2);
                     encryptedPayload = DEROctetString.getInstance(seq.getObjectAt(5));
                     break;
+
                 }
 
             // read back
             // if compression is not present, use default COMPRESSION_NONE
             result.encryptedData = encryptedPayload.getOctets(); // this we just pass on.
-
-
 
             //# parse the encryption part
             DLSequence symseq = (DLSequence) encryptionPart.getBaseUniversal(true, BERTags.SEQUENCE);
@@ -195,10 +214,25 @@ public class TransportFormatConverter
                                 break;
                             case 3: // CONTEXT[3] INTEGER is the optional nonce size in bit
                                 int nonceSizeInBit = ASN1Integer.getInstance(taggedObject.getBaseUniversal(true,BERTags.INTEGER)).intPositiveValueExact();
-                                if (nonceSizeInBit != InterleavedIntegrityPadding.NONCE_SIZE * 8)
+                                if (nonceSizeInBit != InterleavedIntegrityPadding_V1_0.NONCE_SIZE*8)
                                     throw new IllegalArgumentException("this version uses fixed nonce size.");
                                 break;
-
+                            case 4: // CONTEXT[4] OCTET_STRING, OCTET_STRING, OCTET_STRING for procedureVersion()==2 only
+                                if (procedureVersion.intPositiveValueExact() != 2)
+                                    {
+                                    throw new IllegalArgumentException("version to structure mismatch");
+                                    }
+                                else
+                                    {
+                                    // a vector containing three DEROctetString instances, for three ephemeral AES key values.
+                                    // we've got to "enter" that vector first.
+                                    DLSequence ephemeralKeySequence = (DLSequence) taggedObject.getBaseUniversal(true, BERTags.SEQUENCE);
+                                    ASN1OctetString key1Data = ASN1OctetString.getInstance(ephemeralKeySequence.getObjectAt(0));
+                                    ASN1OctetString key2Data = ASN1OctetString.getInstance(ephemeralKeySequence.getObjectAt(1));
+                                    ASN1OctetString key3Data = ASN1OctetString.getInstance(ephemeralKeySequence.getObjectAt(2));
+                                    result.setEphemeralSymmetricKeyBytes(key1Data.getOctets(), key2Data.getOctets(), key3Data.getOctets());
+                                    }
+                                break;
                             default:
                                 throw new IllegalArgumentException("tag " + taggedObject.getTagNo() + " not handled"); //@IMPROVE
                             }
