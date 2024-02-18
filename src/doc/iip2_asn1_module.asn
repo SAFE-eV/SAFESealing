@@ -1,0 +1,68 @@
+
+
+IIP2 DEFINITIONS ::=
+BEGIN
+
+EncryptionLayer ::= SEQUENCE {
+    encryptionAlgorithm  OBJECT IDENTIFIER,
+    encryptionInfo       [0] EXPLICIT EncryptionInfo,
+    compressionInfo      [1] EXPLICIT CompressionInfo OPTIONAL,
+    keyInfo      [2] EXPLICIT KeyInfo OPTIONAL,
+    nonceInfo    [3] EXPLICIT NonceInfo OPTIONAL,
+    ephemeralKeys        [4] EXPLICIT EphemeralKeys OPTIONAL,
+    iv   OCTET STRING
+}
+
+EncryptionInfo ::= SEQUENCE {
+    encryptionAlgorithm  OBJECT IDENTIFIER
+}
+
+CompressionInfo ::= SEQUENCE {
+    compressionAlgorithm         OBJECT IDENTIFIER
+}
+
+KeyInfo ::= SEQUENCE {
+    keyBitSize   INTEGER
+}
+
+NonceInfo ::= SEQUENCE {
+    nonceBitSize         INTEGER
+}
+
+EphemeralKeys ::= SEQUENCE {
+    ephemeralKey1        OCTET STRING,
+    ephemeralKey2        OCTET STRING,
+    ephemeralKey3        OCTET STRING
+}
+
+KeyExchangeLayer ::= SEQUENCE {
+    keyAgreementAlgorithm	 OBJECT IDENTIFIER,
+    keyDiversificationData	 OCTET STRING,
+    keyDiversificationInfo	 [0] EXPLICIT KeyDiversificationInfo,
+    eccAlgorithmInfo	 [1] EXPLICIT EccAlgorithmInfo OPTIONAL,
+    eccCurveInfo	 [2] EXPLICIT EccCurveInfo OPTIONAL,
+    keyReferences	 [3] EXPLICIT KeyReferences OPTIONAL
+}
+
+KeyDiversificationInfo ::= SEQUENCE { }
+
+EccAlgorithmInfo ::= SEQUENCE { }
+
+EccCurveInfo ::= SEQUENCE { }
+
+KeyReferences ::= SEQUENCE { }
+
+AuthenticationLayer ::= SEQUENCE {
+    authenticationAlgorithm	 OBJECT IDENTIFIER
+}
+
+OuterBlock ::= SEQUENCE {
+    formatID	 OBJECT IDENTIFIER,
+    formatVersion	 INTEGER,
+    encryption	 [0] EXPLICIT EncryptionLayer,
+    keyExchange	 [1] EXPLICIT KeyExchangeLayer,
+    auth	 [2] EXPLICIT AuthenticationLayer,
+    protectedData	 OCTET STRING
+}
+
+END

@@ -1,34 +1,167 @@
-# Integration des IIP-Verfahrens für praktischen Gebrauch
+# Implementation des IPS-Verfahrens für praktischen Gebrauch
+
+## Anforderungen
+
+Pro zu verarbeitende Nachricht wird benötigt:
+
+* einmalig "plain RSA" mit der gewählten Schlüsselgröße, Verschlüsselungsaufruf mit private Key.
+* dreimal AES-CBC über die gesamte vorbereitete (gepaddete) Nachricht.
+
+Benötigte Kryptographie-Funktionalität:
+
+* "RSA/ECB/NoPadding"
+* "AES/CBC/NoPadding"
+* Erzeugung sicherer Zufallszahlen
+
+Auf die Eigenheiten gewisser RSA-Implementationen wurde Rücksicht genommen.
 
 ## Ausformung des Verfahrens für die Praxis
 
-Erklärt man das Verfahren allgemein, kann man die Schutzdaten mit festen Werten wie z.B. "SAFE" darstellen.
-In der Praxis sind festgelegte Werte jedoch ungünstig, da für Angreifer vorhersehbar; man bevorzugt daher Zufallsdaten.
+### Signieren
 
+1. Berechnungen
+   1. Die zu verwendenden Zahlwerte werden ermittelt: Blockgrößen des asymmetrischen (RSA) und symmetrischen (AES)-Verfahrens,
+      Größe der abzusichernden Nachricht, Konstanten; alles in Byte umgerechnet.
+   2. Darauf basierend werden Berechnungen vorgenommen zu Anzahl der Blöcke im symmetrischen und asymmetrischen Verfahren;
+      daraus wiederum die Größe des benötigten Puffers.
 
-Es wird ein zufälliger Einmalwert (nonce) erzeugt.
-Dieser wird den Nutzdaten vorangestellt, und pro zu verschlüsselndem Datenblock mindestens je einmal ein davon abgeleiteter Wert hinzugefügt.
-Weitere Leitinformationen vor, und ggf. notwendiges padding auf blockgröße nach den so resultierenden Daten werden angefügt.
-Die Datenblöcke werden mit einem geeeigneten (!) Verschlüsselungsverfahren und Chaining Mode / Operation Mode verschlüsselt.
+Für RSA-Eigenheiten speziell wird der Puffer zwei byte größer gewählt; in der weiteren Verarbeitung werden diese Bytes
+jedoch ignoriert (per start-offset), außer im RSA-Schritt, wo sie ausdrücklich erwähnt werden.
 
-Bei der Verschlüsselung finden Diffusion und Confusion statt, so daß in verschlüsseltem Zustand
-die Schutzdaten mit den Nutzdaten verflochten sind.
+Der hier beschreibene Ablauf geht von in-place-Verarbeitung aus, d.h. der jeweilige Output geht an denselben offset,
+wie der zugehörige Input. Bedingung hierfür ist, daß Input und Output jeweils gleich groß sind.
 
-Prüfvorgang: Nach Entschlüsselung wird die Integrität der Schutzdaten überprüft. Hierzu nimmt man den vor den Daten
-stehenden Wert und vergleicht ihn je Datenblock mit dem korrespondierenden Daten im entschlüsselten Datenblock.
-Diese müssen der spezifischen Erwartung gemäß zueinander passen; tun sie es nicht, liegt ein Integritätsfehler vor.
+2. Vorbereitung
+   1. Es werden drei Schlüssel für das symmetrische Verfahren erzeugt; die zugehörigen Initialisierungsvektoren IV
+      sind mit Konstanten belegt.
+   2. Der Puffer wird alloziert.
+   3. Es wird ein nonce mit Zufallsdaten erzeugt; dessen Länge ist darauf abgestimmt,
+      mit den beiden nachfolgenden unsigned int wiederum einen "inner block" zu ergeben.
 
-Als Verbesserung eines einfachen wiederholten Fest- oder Zufallswerts kann man den Zufallswert
-1. diesen als Ganzzahl ansehen und hochzählen (analog zum CTR-mode);
-2. diesen als Startwert einer komplexeren Erzeugungsfunktion ansehen und den Datenstrom auf Richtigkeit prüfen.
+3. Padding.
+   Der Puffer (ab dem start-offset 2) wird nach folgendem Schema befüllt:
+   1. virtuelle Aufteilung in Blöcke der "outer Blocks" des asymmetrischen Verfahrens; Blockzähler hierzu beginnend bei 0.
+   2. Konstante Kennung ("Magic ID"), Länge entsprechend Größe der "inner blocks" der symmetrischen Verschlüsselung.
+   3. Nonce.
+   4. Länge der gesamten Plaintext/Payload-Nachricht; Darstellung als 4 byte unsigned big-endian integer.
+   5. Blockzähler, siehe oben. Darstellung als 4 byte unsigned big-endian integer.
+   6. Ausschnitt des Plaintextes bis zur Grenze des "outer Blocks".
 
-Mit dieser Verbesserung wird auch bei ECB und ähnlichen Chainings/operation modes erkannt, wenn Datenblöcke im Ciphertext
-vertauscht wurden. Eine Parallelisierung der Ver- und Entschlüsselung ist damit weiterhin möglich, aber eine
-Parallelisierung der Angriffe sollte erschwert sein.
+Beim letzten Block sind nach Ende des Plaintextes ggf. nicht definierte Bytes mit 0x00 zu füllen,
+sofern nicht bereits bei Initialisierung des Puffers geschehen.
+
+Das Konzept "Schutzdaten" wird hier zusammengesetzt aus
+
+- der festen Konstanten Kennung,
+- dem pro Nachricht unterschiedlichen nonce,
+- der Längenangabe, welche zudem zwischen den Blöcken einer Nachricht identisch sein muß (und anderen Bedingungen genügen),
+- dem Blockzähler, welcher zudem der Reihenfolge der Blöcke einer Nachricht entsprechen muß.
+
+All diese Schutzdaten werden mit den Nutzdaten (dem jeweiligen Ausschnitt des Plaintextes) mittels AES, AES, Umkehrung,
+AES mehrfach verflochten.
+
+4. Der Pufferinhalt wird symmetrisch mit dem ersten Schlüssel verschlüsselt: AES-CBC-NoPadding(key1,IV1)
+5. Der Pufferinhalt wird symmetrisch mit dem zweiten Schlüssel verschlüsselt: AES-CBC-NoPadding(key2,IV2)
+6. Der Pufferinhalt wird in der Reihenfolge umgekehrt, und zwar in Blockgröße der symmetrischen Verschlüsselung
+7. Der Pufferinhalt wird symmetrisch mit dem dritten Schlüssel verschlüsselt: AES-CBC-NoPadding(key3,IV3)
+
+8. Der Pufferinhalt wird asymmetrisch mit dem privaten asymmetrischen Schlüssel verschlüsselt.
+   1. in die beiden zusätzlichen Bytes vor dem regulären puffer werden konstante Werte geschrieben.
+   2. dort beginnend, wird mit RSA-ECB-NoPadding(privateKey) verschlüsselt.
+      Das heißt, es werden die beiden vorangestellten bytes, und die ersten (RSABlockgröße-2) bytes des
+      zuvor bearbeiteten Puffers der RSA-encrypt-Funktion zur Verarbeitung übergeben.
+
+9. Das gesamte Resultat stellt zusammen mit den drei symmetrischen Schlüsseln als Bündel das Chiffrat dar, welches
+   zu übermitteln ist.
+
+### Entschlüsseln und Prüfen
+
+Auch hier wird von in-place-Verarbeitung ausgegangen; die Allokation des Resultatpuffers findet erst verzögert statt.
+
+1. Berechnungen
+   1. Ermittlung der Blockgrößen von asymmetrischem und symmetrischen Verfahren
+   2. Prüfung, ob die übergebenen Schlüssel und Datenlänge damit zusammenpassen.
+      Die Länge des ciphertextes -2 muß ohne Rest durch die Blockgrößen teilbar sein;
+      oder anders gesagt, Teilen der Ciphertext-Länge durch die Blockgrößen muß Rest 2 ergeben.
+   3. Anzahl der "outer blocks" des asymmetrischen Verfahrens durch Division ermitteln.
+
+2. Entschlüsselung
+   1. asymmetrische Entschlüsselungs-Funktion durchführen vom absoluten ciphertext-Anfang (offset 0) aus.
+      RSA-ECB-NoPadding(publicKey).
+      Die ersten beiden Bytes werden ignoriert; die weitere Verarbeitung beginnt bei offset 2.
+      An dieser Stelle können bereits Veränderungen des ciphertextes dazu führen, daß die RSA-Funktion Fehler
+      meldet. Diese sind als erwarteter Erkennungs-Fall zu behandeln: Ablehnung der Eingabe als manipuliert.
+   2. symmetrische Entschlüsselung mit key3, IV3: AES-CBC-NoPadding(key3,IV3)
+   3. Der Pufferinhalt wird in der Reihenfolge umgekehrt, und zwar in Blockgröße der symmetrischen Verschlüsselung
+   4. symmetrische Entschlüsselung mit key2, IV2: AES-CBC-NoPadding(key2,IV2)
+   5. symmetrische Entschlüsselung mit key1, IV1: AES-CBC-NoPadding(key1,IV1)
+
+3. Prüfung und Extraktion
+   1. Der nunmehr entschlüsselte Pufferinhalt ist in Blöcke der zum asymmetrischen Verfahren passenden Größe zu teilen,
+      daraus resultiert ein Blockzähler.
+   2. Schleife, pro solchem Block:
+      1. Prüfung, ob die Kennung ("Magic ID") exakt den Erwartungen entspricht.
+         Ähnlich IIP wird hier erkannt, wenn Abweichungen vorliegen sollten.
+      2. Überspringen der Zufallsbytes.
+      3. Auslesen der Plaintext-Länge. Beim ersten Block ist hier noch kein Vergleichswert bekannt;
+         bei allen folgenden Blöcken wird geprüft, ob die Werte jeweils identisch sind.
+         Zusätzlich wird die Plausibilität des ersten Wertes geprüft.
+      4. Auslesen der Blocknummer, Vergleich mit dem Blockzähler. Diese müssen ebenfalls übereinstimmen.
+      5. Verwendung der Payload/plaintext-Daten bis zum Ende des jeweiligen "outer blocks".
+
+Die Extraktion des Plaintextes und die Puffer-Allokation dafür kann entweder während der Prüfungs-Schleife,
+oder nachträglich geschehen. Falls letzeres, kann die Prüffunktion den Längenwert zurückgeben; falls ersteres,
+den bereits extrahierten Plaintext.
 
 ### Aufbau
 
-#### kryptographische Darstellung
+##### Version 2
+
+Die zu verschlüsselnde Nachricht wird zusammengesetzt aus:
+
+* κ: Security parameter
+* N : RSA modulus
+* e: public RSA exponent
+* d: private RSA exponent
+* sk: secret signing key
+* vk: public verification key
+* C κ : Constant for security parameter κ
+* l: block length of the (ideal) cipher
+* n: length parameter denoting the number of blocks to be used.
+* o: key length of the ideal cipher
+* M: message space
+* k: key
+* r: random nonce
+* ⊥: special error symbol
+* m: message, plaintext
+* |m|: bit length of |m|, presumptive during unpadding
+* m i : i-th block of i, not necessarily of length l
+* n �� : length parameter denoting the number of blocks of m for the first padding step (i.e. number of
+  blocks of “RSA block length”)
+* m � : processed message / plaintext (after first step of the padding before encryption)
+* m � i , i-th block of m� , of “RSA block length” (during padding) resp. IC block length l (during unpadding)
+* i: counter
+* c: Encryption of m � under k using SKE (second padding step)
+* ci : blocks of c of length l
+* n � : number of blocks of c.
+* c n 1 : First l(κ) − 16 bits of c n
+* c n 2 : Last 16 bits of c n
+* c � 1 : First part of third padding step of RSA block length (RSA −1 will be applied to this part)
+* • c � 2 : Second part of third padding step (will be sent out-of-band)
+* t: temporary variable for the presumptive length of m during unpadding encoded as bits
+* v: temporary variable during unpadding where the reconstructed message is stored
+* ε: the empty word
+* t � : temporary variable for the recovered length in each “RSA-length block”
+* u � : temporary variable for the recovered index in each “RSA-length block”
+* |v|: Length of unpadded message
+* σ: (presumptive) signature
+* σ � : RSA−1 (c � 1 )
+
+Ck | r | (|m|) | i | m[i]
+
+@TODO
+
+##### Version 1
 
 Die zu verschlüsselnde Nachricht wird zusammengesetzt aus:
 
@@ -57,13 +190,13 @@ in der Praxis wird die Größe von M_i aus dieser abzüglich der Größe von P_i
 tiefergestellten i dargestellt werden.)
 
 Wenn die Aufteilung der Nutzdaten nicht genau aufgeht, also für R1 ein Platz ist,
-wird als letzter Block (P_i M_i R1) geschrieben. Geht die Aufteilung der 
-Nutzdaten jedoch genau auf  und die Länge eines solchen R1 wäre 0
-(anders gesagt: ist die Länge vom letzten M_i == 0), dann wird der Block (P_i | R2) angehangen. 
+wird als letzter Block (P_i M_i R1) geschrieben. Geht die Aufteilung der
+Nutzdaten jedoch genau auf und die Länge eines solchen R1 wäre 0
+(anders gesagt: ist die Länge vom letzten M_i == 0), dann wird der Block (P_i | R2) angehangen.
 So endet die gepaddete Sequenz in jedem Fall auf Zufallsdaten.
 
 In obiger Darstellung wird, wie bei Kryptographie üblich, das Zeichen "|" als Symbol für Verkettung verwendet.
-Daher steht es für die Darstellung der Alternative (entweder "(P_i M_i R1)" oder "(P_i | R2)") nicht zur Verfügung. 
+Daher steht es für die Darstellung der Alternative (entweder "(P_i M_i R1)" oder "(P_i | R2)") nicht zur Verfügung.
 
 #### Darstellung für Implementation
 
@@ -74,10 +207,11 @@ Zudem ist als Input notwendig, die Blockgröße des Verschlüsselungsverfahrens 
 
 Die Nachricht muß in mehrere aufeinanderfolgende Datenblöcke aufgeteilt werden, welche dann jeweils verschlüsselt werden.
 Die Länge dieser Blöcke CB_len hängt von Algorithmus und Schlüsselgröße ab.
-Beispielsweise beträgt bei RSA 2048 bit diese Blockgröße 255 byte 
+Beispielsweise beträgt bei RSA 2048 bit diese Blockgröße 255 byte
 (2048/8=256; da das MSB stets gesetzt sein muß, wird von Implementationen das oberste Byte belegt/gesperrt).
 
 Folgende Typen von Datenblöcken werden erzeugt:
+
 1. der Headerblock, der stets als erstes gesendet wird;
 2. "mittlere" Datenblöcke, wenn noch weitere Datenblöcke folgen.
 3. ein letzter Datenblock in der Variante, wenn nach den Nutzdaten noch Platz übrig war;
@@ -85,8 +219,8 @@ Folgende Typen von Datenblöcken werden erzeugt:
 
 Es gibt nur einen letzten Datenblock, wobei abhängig von der Nachrichtenlänge entweder Typ 3 oder Typ 4 verwendet wird.
 
-
 Der erste Block setzt sich wie folgt zusammen:
+
 1. eine feste Bytefolge **I**
 2. Zufallsdaten **R0**
 3. die Länge der verpackten Nutzdaten **M_len**
@@ -104,7 +238,7 @@ In Version 1 gelten folgende Werte:
 
 Zwischen I und M_len wird mit Zufallswerten R0 aufgefüllt, so daß insgesamt die Blockgröße CB_len entsteht.
 Für den Fall, daß die Blockgröße so klein sein sollte, daß zuwenig Platz ist, wird I gekürzt, jedoch auf nicht weniger
-als 3 byte. Mindestens ein Zufallsbyte R0 wird dem ersten Block immer mitgegeben. 
+als 3 byte. Mindestens ein Zufallsbyte R0 wird dem ersten Block immer mitgegeben.
 
 Im ersten Block werden keine Plaintext-Daten untergebracht, da P hier zum ersten Mal erscheint - es gibt noch keinen
 Vergleichswert, zu dem eine Abweichung auffallen könnte. Nutzdaten im ersten Block wären ungeschützt.
@@ -126,18 +260,16 @@ und pro Block hochgezählt. Auf diese Weise ist ein "inneres Chaining" vorhanden
 erkannt werden würde. (Spätere Versionen können Pseudozufalls-Datenströme verwenden, welche kryptanalytisch schwerer
 vorherzusagen sind.)
 
-Wenn die Aufteilung der Nutzdaten mit den Blöcken nicht komplett aufging, so sind im letzten Block noch freie Bytes 
+Wenn die Aufteilung der Nutzdaten mit den Blöcken nicht komplett aufging, so sind im letzten Block noch freie Bytes
 vorhanden; diese werden mit Zufallsdaten aufgefüllt (Blocktyp 3).
 
 Sollte die Aufteilung jedoch glatt aufgegangen sein, wird ein weiterer Block angefügt, welcher außer dem nächsten Pi nur
 Zufallsdaten enthält (Blocktyp 4).
 So endet die zu verschlüsselnde Nachricht stets auf nicht genutzte Zufallsdaten.
 
-
 Die so gepaddete Nachricht ist nun mit dem gewählten Verschlüsselungsalgorithmus zu verschlüsseln.
 Dabei ist darauf zu achten, daß dessen korrekte Variante gewählt wird. Ein weiteres Padding ist nicht nötig;
 bei den operation modes (chaining) ist sehr darauf zu achten, daß diese die Sicherheit des Verfahrens nicht gefährden.
-
 
 ### RSA
 
@@ -153,38 +285,21 @@ verwendet.
 --------
 
 ### EC
+
 Eine Verwendung mit ECC direkt scheint möglich, aber für die praktische Verwendung durch Integratoren nicht angeraten.
 Günstiger für Integration und Prüfung ist es, von etablierten Verfahren auszugehen.
 Daher wurde ECDHE gewählt, um mittels EC auf ephemeral keys für symmetrische Verschlüsselung zu kommen.
 
 ### symmetrische Kryptographie
-
-Bei symmetrischer Verschlüsselung werden üblicherweise die Eingangsdaten zusammen mit dem Schlüssel nach bestimmten Mustern
-"verwirbelt" und verflochten, so daß man diese Muster rückgängig machen kann, aber möglichst schlecht analysieren.
-
-Der Unterschied zu EC, RSA u.ä. besteht darin, daß letzere die Daten als Zahlen, Punkte auf einer Kurve o.ä. interpretieren
-und damit Rechenoperationen durchführen, wohingegen symmetrische Verfahren die Daten einfach nur als Bit-Sammlungen
-ansehen, welche sie ohne Interpretation verarbeiten.
-
-Dieser Unterschied ist hier insbesondere wichtig, wenn es um die Verbindung mehrerer Blöcke geht, und Angriffsmöglichkeiten daraus.
-
 #### Chaining / Operation Mode
-
-Nochmals der Hinweis: Für symmetrische Ciphers sind hier die Operation Modes CFB, OFB, CTR, GCM nicht zu verwenden!
-Generell sind für dieses Verfahren alle Operation Modes strikt zu vermeiden, welche einen Datenstrom erzeugen und diesen
-XOR mit den Nutzdaten überlagern. Die für dieses Verfahren benötigte Diffusion ist bei diesen Operation Modes nicht vorhanden!
-
-Bei RSA ist das Chaining weniger relevant, obiger Angriffsvektor besteht so nicht, da die Bits als große Ganzzahl
-interpretiert werden; jedes Bit Änderung hat große Folgen in der Multiplikation. Ähnlich EC selbst.
-
 # Benennung
 
-Der vorgeschlagene Name für dieses Verfahren im Kontext kryptographischer Algortihmen 
+Der vorgeschlagene Name für dieses Verfahren im Kontext kryptographischer Algortihmen
 lautet "IIP" = Interleaved Integrity Padding.
 
 Es handelt sich dabei sowohl um ein Padding als auch ein Chaining.
 "AES/ECB/IIP" und "AES/CBC/IIP" sind mögliche Benennungen von Algorithmen; bei diesen wird aber nicht ausgedrückt,
-daß auch IIP ein Chaining vornimmt. 
+daß auch IIP ein Chaining vornimmt.
 
 -----
 
@@ -203,6 +318,7 @@ aus der Paginierung, oder aus einem beliebigen anderen monoton steigendem Zähle
 Streuung sind möglich, tragen aber das Risiko einer Kollision/Wiederverwendung desselben symmetrischen ephemeral keys.
 
 -----
+
 # Implementation
 
 ## Ablauf
@@ -210,12 +326,12 @@ Streuung sind möglich, tragen aber das Risiko einer Kollision/Wiederverwendung 
 Um einen Datensatz zu prüfen, müssen zunächst die verschüsselten Daten entschlüsselt werden.
 Die entschlüsselten Daten werden dann mittels der Prüfung dieses Verfahrens auf Integrität geprüft.
 
-
 ### Padding und Verschlüsselung
 
 Verschlüsselungsfunktion auf Absenderseite wird mit den zu verschlüsselnden Daten aufgerufen.
 
 Der Absender erzeugt folgende Zufallswerte:
+
 * einen "inneren nonce" (padding-nonce). Im aktuellen Verfahren ist dieser als 32 bit (4 Byte) groß definiert.
 * falls vom Algorithmus benötigt, einen IV ("äußerer nonce")
 * falls key agreement genutzt, einen Zähler- oder Zufallswert für die Schlüsselableitung.
@@ -232,7 +348,6 @@ RSA/CBC ist möglich, der hierfür benötigte IV auch in Code und Format vorgese
 
 Von anderen Operation modes/chainings ist nachdrücklich abzuraten.
 
-
 ECDHE+AES: Der Absender berechnet aus Public key des Empfängers, eigenem Private key, und dem Zufallswert für die Schlüsselableitung
 eine Anzahl Bytes, welche als "ephemeral key" / Einmalschlüssel für das symmetrische Verschlüsselungsverfahren dienen.
 Hierbei wird bereits das symmetrische Verschlüsselungsverfahren als Bitstrom-Generator eingesetzt, um gute Schlüsselqualität
@@ -246,18 +361,15 @@ Die symmetrische Verschlüsselung wird mit dem ephemeral key, dem generierten IV
 Auf Senderseite werden die verschlüsselten Daten nun zusammen mit dem IV und dem Wert für die Schlüsselableitung dem
 allgemeineren Code für Formatierung in einer OCMF-Nachricht übergeben.
 
-
 Nota Bene: der "innere nonce" verlässt die Verschlüsselungsfunktion nicht.
 
 ### Entschlüsselung und Prüfung
 
 Allgemein:
- Die Blockgröße des Verschlüsselungsverfahrens muß bekannt sein oder aus dessen Schlüsselgröße gefolgert werden.
-
+Die Blockgröße des Verschlüsselungsverfahrens muß bekannt sein oder aus dessen Schlüsselgröße gefolgert werden.
 
 RSA: Auf Empfängerseite wird zunächst der public key des Absenders ermittelt, sowie ein ggf. benötiger IV extrahiert.
 Dann wird mit dem public key der verschlüsselte ciphertext entschlüsselt.
-
 
 ECDHE+AES: Auf Empfängerseite wird zunächst der public key des Absenders ermittelt, sowie IV und Wert für Schlüsselableitung extrahiert.
 Dann werden diese drei zusammen mit den verschlüsselten daten (ciphertext) und dem private key des Empfängers zur Verarbeitung übergeben.
@@ -265,12 +377,12 @@ Zunächst wird mittels ECDHE aus public key des Absenders, private Key des Empf�
 verwendete symmetrische Schlüssel abgeleitet.
 Dieser wird sodann verwendet, um zusammen mit dem IV die verschlüsselten Daten zu entschlüsseln.
 
-
 Allgemein weiter:
 
 Die entschlüsselten Daten werden dann wie folgt auf Integrität geprüft:
 
 Die Daten werden von Anfang bis Ende gelesen; dabei wird geprüft
+
 1. Die einleitende Kennung ("magic ID") muß einer der erwarteten Werte sein. (u.a. Versionsunterscheidung)
 2. Der "innere nonce"/padding-nonce wird übernommen und temporär für die Dauer des Prüfungsvorgangs lokal gespeichert.
 3. Die Länge der nachfolgenden Nutzdaten wird gelesen.
@@ -280,8 +392,8 @@ Die Daten werden von Anfang bis Ende gelesen; dabei wird geprüft
 7. Gegebenenfalls den letzten Nutzdaten nachfolgende Zufallsdaten werden ignoriert.
 
 Wird bei Schritten 1,4,5, oder 6 eine Abweichung festgestellt, so ist die Integrität der Nachricht verletzt worden
-und es wird ein Fehler zurückgemeldet. 
-Sind alle Prüfungen erfolgreich verlaufen, gilt die Integrität der Nachricht als gesichert 
+und es wird ein Fehler zurückgemeldet.
+Sind alle Prüfungen erfolgreich verlaufen, gilt die Integrität der Nachricht als gesichert
 und die rekombinierten Nutzdaten aus den Datenblöcken können für die weitere Verarbeitung weitergegeben werden.
 
 #### Authentizität
@@ -293,7 +405,7 @@ Bei direkter Verschlüsselung kann die Kenntnis des jeweiligen Private Key/Secre
 um die Authentizität zu prüfen: wird bei Entschlüsselung nicht der korrespondierende Schlüssel verwendet,
 schlagen Entschlüsselung und/oder Prüfung fehl.
 
-Wird hierbei asymmetrische Kryptographie verwendet, so ist auch unwesentlich, 
+Wird hierbei asymmetrische Kryptographie verwendet, so ist auch unwesentlich,
 ob der Private Key des Empfängers korrekt geheimgehalten wurde, oder einem Angreifer bekannt ist:
 Bei unidirektionaler Kommunikation geht es um die Identität des Absenders, und dieser hält seinen Private Key geheim.
 
@@ -308,21 +420,28 @@ Bei diesem Szenario hängt also die Authentizität von der Geheimhaltung aller P
 Eine Inhaltskompression ist vorgesehen; diese dürfte insbesondere bei Textdaten als Plaintext nützlich sein.
 
 ### Implementationsdetails generell
+
 - Alle Zahlwerte werden Big-Endian gespeichert: das Wichtigste zuerst. (Network Byte Order, konsistent mit kryptographischen Funktionen, ASN.1-Repräsentation usw.)
 - Es wird immer mindestens ein ungenutztes Zufallsbyte in den ersten Block gelegt; falls nötig, wird hierfür die MagicID
   gekürzt.
 - Die MagicID lautet 0x3E7AB1705AFEE410.
 
 Für alle bislang definierten Versionen gilt weiter:
-- Als Größe des "inneren nonce" wird 32 bit (4 byte) gewählt. Damit bleiben bei üblicher symmetrischer Verschlüsselung pro Datenblock 12 byte für Nutzdaten; das Padding vergrößert dann seine Eingabedaten um etwas mehr als 25%.
+
+- Als Größe des "inneren nonce" wird 32 bit (4 byte) gewählt. Damit bleiben bei üblicher symmetrischer Verschlüsselung pro Datenblock 12 byte für Nutzdaten; das Padding vergrößert dann seine
+  Eingabedaten um etwas mehr als 25%.
 - Als Größenangabe im Block wird 32 bit verwendet; damit ist eine Nutzdatengröße bis knapp 4 GB möglich.
 
 ### Version 1
+
 Version 1 verwendet RSA.
+
 - Wird ohne Key Agreement verschlüsselt, es kommt RSA zum Einsatz.
 
 ### Version 2
+
 Version 2 ermöglicht ECDHE und AES.
+
 - Wird mit Key Agreement verschlüsselt, es kommt ECHDE zum Einsatz. Die verwendete Kurve ist dabei flexibel; secp256r1 sollte jedoch stets möglich sein.
 - Als symmetrisches Verschlüsselungsverfahren wird derzeit AES verwendet, mit AES-256 als default.
 
